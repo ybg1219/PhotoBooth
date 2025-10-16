@@ -19,7 +19,7 @@ export function MainPage() {
   `;
 
   container.querySelector("#shootBtn").addEventListener("click", () => {
-    router.navigate("/photo", PhotoBoothPage());
+    router.navigate("/photo"); // ✅ 여기서는 함수 실행 X
   });
 
   return container;

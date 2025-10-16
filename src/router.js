@@ -7,20 +7,21 @@ export const router = {
   },
 
   // 이동
-  navigate(path, component) {
+  navigate(path) {
     history.pushState({}, "", path);
-    document.querySelector("#app").innerHTML = "";
-    document.querySelector("#app").appendChild(component);
+    this.loadRoute(path);
   },
 
   // 현재 경로 로드
   loadRoute(path) {
     const route = this.routes[path];
+    const app = document.querySelector("#app");
+
     if (route) {
-      document.querySelector("#app").innerHTML = "";
-      document.querySelector("#app").appendChild(route);
+      app.innerHTML = "";
+      app.appendChild(route()); // ✅ 함수 실행은 여기서!
     } else {
-      document.querySelector("#app").innerHTML = "<h2>404 Not Found</h2>";
+      app.innerHTML = "<h2>404 Not Found</h2>";
     }
   },
 };

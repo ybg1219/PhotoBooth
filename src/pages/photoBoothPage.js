@@ -1,96 +1,145 @@
-import { router } from "../router.js";
-import { MainPage } from "./mainPage.js";
+/**
+ * 포토부스 페이지 (PhotoBoothPage)
+ * 웹캠 미리보기 + 촬영 + 저장 기능 포함
+ * @param {HTMLElement} container - 페이지가 렌더링될 DOM 요소
+ * @returns {Function} cleanup - 페이지가 사라질 때 호출될 정리 함수
+ */
 
-export function PhotoBoothPage() {
-  const container = document.createElement("div");
-  container.classList.add("photo-page");
-
+export function PhotoBoothPage(container) {
   container.innerHTML = `
-    <!DOCTYPE html>
-    <html lang="ko">
-    <head>
-    <meta charset="UTF-8">
-    <title>인생네컷 촬영</title>
-    <link rel="stylesheet" href="./css/photo.css">
-    <script defer src="./js/router.js"></script>
-    </head>
-    <body>
-    <header>
-        <button id="back-btn">← 돌아가기</button>
-        <h1>인생네컷 촬영</h1>
-    </header>
+    <style>
+      .photo-booth {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        padding: 20px;
+        color: white;
+      }
 
-    <main class="fourcut-container">
-        <section class="frame-preview">
-        <div class="film-frame" id="film-frame">
-            <div class="photo-slot" data-index="0">+</div>
-            <div class="photo-slot" data-index="1">+</div>
-            <div class="photo-slot" data-index="2">+</div>
-            <div class="photo-slot" data-index="3">+</div>
-        </div>
-        </section>
+      video {
+        width: 320px;
+        height: 240px;
+        border-radius: 12px;
+        background: #000;
+        object-fit: cover;
+        border: 2px solid #ccc;
+      }
 
-        <section class="controls">
-        <input type="file" id="file-input" accept="image/*" multiple hidden>
-        <button id="upload-btn">사진 업로드</button>
-        <button id="reset-btn">초기화</button>
-        </section>
-    </main>
-    </body>
-    </html>
+      canvas {
+        display: none;
+      }
 
+      .photo-buttons {
+        display: flex;
+        gap: 10px;
+      }
+
+      button {
+        background: #ff66b2;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 16px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        transition: 0.2s;
+      }
+
+      button:hover {
+        background: #ff3385;
+      }
+
+      img.captured {
+        margin-top: 15px;
+        width: 320px;
+        border-radius: 12px;
+        border: 2px solid #fff;
+      }
+    </style>
+
+    <div class="photo-booth">
+      <h1>📸 인생네컷 포토부스</h1>
+      <video id="camera" autoplay playsinline></video>
+      <canvas id="captureCanvas" width="320" height="240"></canvas>
+
+      <div class="photo-buttons">
+        <button id="captureBtn">촬영</button>
+        <button id="saveBtn">저장</button>
+        <button id="retakeBtn" style="display:none;">다시 찍기</button>
+      </div>
+
+      <img id="capturedImage" class="captured" style="display:none;" />
+    </div>
   `;
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const uploadBtn = document.querySelector('#upload-btn');
-    const fileInput = document.querySelector('#file-input');
-    const resetBtn = document.querySelector('#reset-btn');
-    const photoSlots = document.querySelectorAll('.photo-slot');
+  // --- DOM 요소 가져오기 ---
+  const video = container.querySelector('#camera');
+  const canvas = container.querySelector('#captureCanvas');
+  const captureBtn = container.querySelector('#captureBtn');
+  const saveBtn = container.querySelector('#saveBtn');
+  const retakeBtn = container.querySelector('#retakeBtn');
+  const capturedImage = container.querySelector('#capturedImage');
+  const ctx = canvas.getContext('2d');
 
-    let currentIndex = 0;
+  let stream = null;
+  let currentBlob = null;
 
-    // 🔹 업로드 버튼 클릭 시 파일 선택창 열기
-    uploadBtn.addEventListener('click', () => {
-        fileInput.click();
-    });
+  // --- 1️⃣ 웹캠 시작 ---
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+    } catch (err) {
+      alert('카메라 접근 권한이 필요합니다!');
+      console.error(err);
+    }
+  }
 
-    // 🔹 파일 선택 시 미리보기
-    fileInput.addEventListener('change', (event) => {
-        const files = event.target.files;
-        if (!files.length) return;
+  // --- 2️⃣ 사진 촬영 ---
+  function capturePhoto() {
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataURL = canvas.toDataURL('image/png');
+    capturedImage.src = dataURL;
+    capturedImage.style.display = 'block';
+    video.style.display = 'none';
+    captureBtn.style.display = 'none';
+    retakeBtn.style.display = 'inline-block';
+    saveBtn.style.display = 'inline-block';
+  }
 
-        Array.from(files).forEach((file) => {
-        if (currentIndex >= photoSlots.length) return; // 네컷 제한
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            photoSlots[currentIndex].innerHTML = '';
-            photoSlots[currentIndex].appendChild(img);
-            currentIndex++;
-        };
-        reader.readAsDataURL(file);
-        });
-    });
+  // --- 3️⃣ 다시 찍기 ---
+  function retakePhoto() {
+    capturedImage.style.display = 'none';
+    video.style.display = 'block';
+    captureBtn.style.display = 'inline-block';
+    retakeBtn.style.display = 'none';
+    saveBtn.style.display = 'none';
+  }
 
-    // 🔹 각 슬롯 클릭 시 교체
-    photoSlots.forEach((slot, index) => {
-        slot.addEventListener('click', () => {
-        fileInput.click();
-        currentIndex = index; // 클릭한 슬롯에 새 이미지 덮어쓰기
-        });
-    });
+  // --- 4️⃣ 이미지 저장 ---
+  function savePhoto() {
+    const link = document.createElement('a');
+    link.download = 'my_photo.png';
+    link.href = capturedImage.src;
+    link.click();
+  }
 
-    // 🔹 초기화 버튼
-    resetBtn.addEventListener('click', () => {
-        photoSlots.forEach(slot => {
-        slot.innerHTML = '+';
-        });
-        currentIndex = 0;
-        fileInput.value = '';
-    });
-    });
+  // --- 이벤트 등록 ---
+  captureBtn.addEventListener('click', capturePhoto);
+  saveBtn.addEventListener('click', savePhoto);
+  retakeBtn.addEventListener('click', retakePhoto);
 
+  // 페이지 진입 시 카메라 시작
+  startCamera();
 
-  return container;
+  // --- cleanup 함수 ---
+  return () => {
+    // 카메라 종료
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+    container.innerHTML = '';
+  };
 }
