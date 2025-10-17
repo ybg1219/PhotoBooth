@@ -1,36 +1,26 @@
-// Note: 실제 분리된 파일에서는 전역 변수 대신 import/export를 사용합니다.
-// PhotoPage, AppRouter에서 필요한 요소들을 import 합니다.
-import { AppRouter } from './main.js';
-import { CAPTURE_COUNT, capturedImages } from './main.js';
-import { videoStream } from './main.js'; // videoStream의 상태는 main에서 관리
+// photo_utils.js
 
-// --- 캔버스 크기 상수 ---
-const CANVAS_WIDTH = 500;
-const PADDING = 20;
-const GAP = 15;
-const LOGO_HEIGHT = 50;
-const PHOTO_WIDTH = CANVAS_WIDTH - PADDING * 2;
-const PHOTO_HEIGHT = (PHOTO_WIDTH / 4) * 3; 
-const TOTAL_HEIGHT = 
-    (PADDING * 2) +
-    (PHOTO_HEIGHT * CAPTURE_COUNT) +
-    (GAP * (CAPTURE_COUNT - 1)) +
-    LOGO_HEIGHT;
+// AppRouter 유틸리티 및 전역 상태 import
+// CAPTURE_COUNT는 이제 함수 내부에서 사용되므로, 상단에서 즉시 계산하지 않습니다.
+import { AppRouter, CAPTURE_COUNT, capturedImages, videoStream } from './main.js';
 
 /**
  * 지정된 초만큼 카운트다운을 실행합니다.
+ * (이 함수는 CAPTURE_COUNT를 사용하지 않습니다.)
  */
 export async function countdown(seconds, pageWrapper) {
+    // ... (기존 코드 유지) ...
     const overlay = pageWrapper.querySelector('#countdown-overlay');
     if (!overlay) return; 
 
     overlay.classList.add('show');
+    let timer = null; 
 
     return new Promise(resolve => {
         let count = seconds;
         overlay.innerHTML = count;
 
-        const timer = setInterval(() => {
+        timer = setInterval(() => {
             count--;
             if (count > 0) {
                 overlay.innerHTML = count;
@@ -44,23 +34,29 @@ export async function countdown(seconds, pageWrapper) {
                 }, 500); 
             }
         }, 1000);
+    }).finally(() => {
+        if (timer) clearInterval(timer);
     });
 }
 
 /**
  * 웹캠의 현재 프레임을 캡처하고 썸네일을 업데이트합니다.
+ * (이 함수는 CAPTURE_COUNT를 사용하지 않습니다.)
  */
 export function capturePhoto(video, shotIndex, pageWrapper) {
+    // ... (기존 코드 유지) ...
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     
+    // 거울 모드 구현
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
     const imageData = canvas.toDataURL('image/png');
+    // 전역 capturedImages 배열에 추가
     capturedImages.push(imageData); 
     
     const thumb = pageWrapper.querySelector(`#thumb-${shotIndex}`);
@@ -75,20 +71,35 @@ export function capturePhoto(video, shotIndex, pageWrapper) {
 /**
  * 4장 연속 촬영 시퀀스 실행
  */
-export async function startShotSequence(video, renderResultScreen, pageWrapper) {
-    const totalShots = CAPTURE_COUNT;
+export function startShotSequence(video, renderResultScreen, pageWrapper) {
+    // CAPTURE_COUNT는 여기서 사용되므로 문제 없습니다.
+    const totalShots = CAPTURE_COUNT; 
+    let isCancelled = false;
+    let currentTimeout = null;
     
-    for (let i = 0; i < totalShots; i++) {
-        await countdown(3, pageWrapper); 
-        
-        capturePhoto(video, i, pageWrapper);
-        
-        if (i < totalShots - 1) {
-            await new Promise(r => setTimeout(r, 1000)); 
+    const cleanup = () => {
+        isCancelled = true;
+        if (currentTimeout) clearTimeout(currentTimeout);
+    };
+
+    async function sequenceLoop() {
+        for (let i = 0; i < totalShots; i++) {
+            if (isCancelled) return;
+            await countdown(3, pageWrapper); 
+            
+            if (isCancelled) return;
+            capturePhoto(video, i, pageWrapper);
+            
+            if (i < totalShots - 1) {
+                await new Promise(r => currentTimeout = setTimeout(r, 1000)); 
+            }
+            if (isCancelled) return;
         }
+        renderResultScreen();
     }
     
-    renderResultScreen();
+    sequenceLoop();
+    return cleanup; 
 }
 
 /**
@@ -96,12 +107,14 @@ export async function startShotSequence(video, renderResultScreen, pageWrapper) 
  */
 export async function handleFileSelection(event, renderResultScreen) {
     const files = Array.from(event.target.files);
+    // CAPTURE_COUNT는 여기서 사용되므로 문제 없습니다.
     if (files.length !== CAPTURE_COUNT) {
         AppRouter.showAppMessage('파일 오류', `정확히 ${CAPTURE_COUNT}장의 사진을 선택해야 합니다.`, true);
         return;
     }
 
-    capturedImages.length = 0; // 배열 초기화
+    // ... (기존 코드 유지) ...
+    capturedImages.length = 0; 
     
     AppRouter.showLoading('사진 파일을 순서대로 로딩 중입니다...');
 
@@ -123,6 +136,20 @@ export async function handleFileSelection(event, renderResultScreen) {
  * 프레임 색상 업데이트 및 이미지 합성 재실행
  */
 export function updateFrameColor(color, pageWrapper) {
+    // 캔버스 크기 상수를 함수 내부로 이동하여, 
+    // CAPTURE_COUNT가 로드된 후에 사용되도록 합니다.
+    const CANVAS_WIDTH = 500;
+    const PADDING = 20;
+    const GAP = 15;
+    const LOGO_HEIGHT = 50;
+    const PHOTO_WIDTH = CANVAS_WIDTH - PADDING * 2;
+    const PHOTO_HEIGHT = (PHOTO_WIDTH / 4) * 3; 
+    const TOTAL_HEIGHT = 
+        (PADDING * 2) +
+        (PHOTO_HEIGHT * CAPTURE_COUNT) + 
+        (GAP * (CAPTURE_COUNT - 1)) +
+        LOGO_HEIGHT;
+        
     const finalCanvas = pageWrapper.querySelector('#final-canvas');
     if (!finalCanvas) return;
     const ctx = finalCanvas.getContext('2d');
@@ -157,6 +184,7 @@ export function updateFrameColor(color, pageWrapper) {
 
 /**
  * 캔버스 이미지를 다운로드합니다.
+ * (이 함수는 CAPTURE_COUNT를 사용하지 않습니다.)
  */
 export function downloadImage(pageWrapper) {
     const finalCanvas = pageWrapper.querySelector('#final-canvas');
@@ -165,6 +193,7 @@ export function downloadImage(pageWrapper) {
         return;
     }
 
+    // ... (기존 코드 유지) ...
     finalCanvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
