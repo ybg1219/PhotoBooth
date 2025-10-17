@@ -1,57 +1,95 @@
-// router.js (HTML 내의 AppRouter 로직을 모방하여 cleanup을 관리)
+// router.js
 
-// 전역 상태 변수 (AppRouter에서 사용)
-let currentCleanup = null; // 현재 페이지의 정리 함수를 저장
+/**
+ * @private
+ * @type {Function|null}
+ * 현재 활성화된 컴포넌트가 반환한 정리(Cleanup) 함수. 
+ * 라우트 변경 시 호출되어 웹캠 스트림 등의 자원을 해제합니다.
+ */
+let currentCleanup = null; 
 
+/**
+ * @public
+ * @namespace
+ * 해시(Hash) 기반 SPA 라우팅을 관리하는 핵심 객체.
+ * 컴포넌트를 등록하고, URL 변화에 따라 적절한 컴포넌트를 렌더링합니다.
+ */
 export const router = {
-    // router 객체 대신, 컴포넌트 맵과 네비게이션 함수를 정의합니다.
+    /**
+     * @private
+     * @type {Object<string, Function>}
+     * 경로(path)와 해당 경로에 매핑된 컴포넌트(함수)를 저장하는 맵.
+     */
     routes: {},
-    appContainer: null, // #app DOM 요소를 저장할 변수
     
-    // 컴포넌트 등록
+    /**
+     * @private
+     * @type {HTMLElement|null}
+     * 컴포넌트가 렌더링될 메인 컨테이너 DOM 요소 (#app).
+     */
+    appContainer: null, 
+    
+    /**
+     * 새로운 경로에 컴포넌트 함수를 등록합니다.
+     * @param {string} path - 등록할 URL 경로 (예: '/main', '/photo').
+     * @param {Function} component - 경로에 매핑될 컴포넌트 함수.
+     */
     register(path, component) {
         this.routes[path] = component;
     },
 
-    // 초기화 및 이벤트 리스너 설정
+    /**
+     * 라우터를 초기화하고, 이벤트 리스너를 설정합니다.
+     * @param {HTMLElement} appElement - 컴포넌트가 렌더링될 DOM 요소 (#app).
+     */
     init(appElement) {
         this.appContainer = appElement;
         
-        // window.location.hash 변경 감지
+        // URL 해시 변경 이벤트에 핸들러를 바인딩하여 연결
         window.addEventListener('hashchange', this.handleLocationChange.bind(this));
         
-        // 페이지 로드 시 초기 경로 설정 및 로드
+        // 초기 로드 시 경로가 설정되지 않았으면 기본 경로로 이동
         if (window.location.hash === '' || window.location.hash === '#/') {
             window.location.hash = '#/main'; // 기본 경로 설정
         }
+        // 초기 페이지를 수동으로 로드
         this.handleLocationChange();
     },
 
-    // 경로 이동 (HTML의 window.location.hash = path 역할)
+    /**
+     * 브라우저의 URL 해시를 변경하여 경로를 이동시킵니다.
+     * @param {string} path - 이동할 경로 (예: 'photo' 또는 '#/photo').
+     */
     navigate(path) {
-        // 경로에 #/가 포함되어 있는지 확인하여 설정
+        // #/ 형식을 보장하며 URL 해시를 업데이트합니다.
         window.location.hash = path.startsWith('#/') ? path : `#${path}`;
+        // hashchange 이벤트가 자동으로 handleLocationChange를 호출합니다.
     },
 
-    // 경로 변경 처리 및 페이지 로드
+    /**
+     * URL 해시 변경 이벤트 발생 시 호출되며, 페이지를 로드하고 이전 자원을 정리합니다.
+     */
     handleLocationChange() {
-        // 이전 페이지의 정리 함수 실행 (웹캠 스트림 중지 등)
+        // 1. 이전 페이지 자원 정리 (Cleanup)
         if (currentCleanup) {
             currentCleanup();
             currentCleanup = null;
         }
 
-        this.appContainer.innerHTML = '';
-        // #/main 에서 '/main'만 추출
+        this.appContainer.innerHTML = ''; // 기존 컨텐츠 제거
+        
+        // #/ 경로에서 경로 이름만 추출 (예: '#/main' -> '/main') || default to '/main'
         const path = window.location.hash.substring(1) || '/main';
         
         const component = this.routes[path];
 
         if (component) {
-            // 컴포넌트 함수를 호출하고, #app 컨테이너를 인수로 전달합니다.
-            // 컴포넌트가 반환하는 cleanup 함수를 저장합니다.
+            // 2. 새 컴포넌트 렌더링
+            // 컴포넌트를 실행하고, #app 컨테이너를 인수로 전달
+            // 컴포넌트가 반환하는 cleanup 함수를 저장
             currentCleanup = component(this.appContainer); 
         } else {
+            // 3. 404 Not Found 페이지 렌더링
             this.appContainer.innerHTML = `
                 <div class="p-8 text-center max-w-xl mx-auto">
                     <h1 class="text-4xl font-extrabold mb-4 text-red-600">404 Not Found</h1>

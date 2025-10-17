@@ -1,5 +1,5 @@
 // photoboothpage.js
-import { AppRouter, CAPTURE_COUNT, capturedImages } from '../main.js';
+import { AppService, CAPTURE_COUNT, capturedImages } from '../main.js';
 import { 
     startShotSequence, 
     handleFileSelection, 
@@ -10,31 +10,48 @@ import {
 
 /**
  * 웹캠 기반 '인생 네컷' 기능을 담당하는 페이지 컴포넌트입니다.
- * @param {HTMLElement} container - 페이지가 렌더링될 DOM 요소 (#app)
- * @returns {Function} 페이지가 사라질 때 호출될 정리(cleanup) 함수
+ * 컴포넌트의 라이프사이클과 화면 전환(Start -> Capture -> Result)을 관리합니다.
+ * * @param {HTMLElement} container - 페이지가 렌더링될 DOM 요소 (#app).
+ * @returns {Function} 페이지가 사라질 때 호출될 정리(cleanup) 함수.
  */
 export function PhotoBoothPage(container) { 
-    // 로직 시작 전 전역 배열 초기화
+    // 로직 시작 전 전역 배열 초기화: 새 촬영을 위해 이전에 찍은 사진들을 지웁니다.
     capturedImages.length = 0; 
     
+    /** * @private
+     * @type {HTMLElement}
+     * 이 페이지의 모든 내용을 담을 최상위 DOM Wrapper.
+     */
     const pageWrapper = document.createElement("div");
     pageWrapper.classList.add("photo-page-wrapper", "w-full", "h-full", "flex", "flex-col", "items-center", "justify-center");
     
-    let currentCleanup = null; // 촬영 시퀀스 타이머 cleanup 저장
+    /**
+     * @private
+     * @type {Function|null}
+     * startShotSequence에서 반환된 타이머 및 시퀀스 중지 cleanup 함수를 저장. 
+     * 촬영 도중 취소하거나 페이지를 떠날 때 사용됨.
+     */
+    let currentCleanup = null; 
 
+    // -------------------------------------------------------------------------
     // --- 화면 렌더링 함수 (단계별) ---
+    // -------------------------------------------------------------------------
 
-    /** Step 1: 시작 화면 렌더링 */
+    /**
+     * @private
+     * 촬영 프로세스의 첫 번째 단계: 시작 화면 (카메라 시작/파일 업로드 선택)을 렌더링합니다.
+     */
     function renderStartScreen() {
-        // 이전 촬영 관련 cleanup (타이머) 실행
+        // 1. 촬영 시퀀스 정리: 혹시 남아있는 카운트다운 타이머를 중지합니다.
         if (currentCleanup) {
             currentCleanup();
             currentCleanup = null;
         }
         
-        // 이전 웹캠 스트림 정리
-        AppRouter.clearVideoStream(); 
+        // 2. 웹캠 스트림 정리: 웹캠 사용을 중지하고 하드웨어 자원을 해제합니다.
+        AppService.clearVideoStream(); 
         
+        // 3. HTML 템플릿 로드
         pageWrapper.innerHTML = `
             <div class="p-8 text-center max-w-sm w-full mx-auto">
                 <h1 class="text-5xl font-extrabold text-blue-600 mb-2">웹 네컷</h1>
@@ -58,21 +75,25 @@ export function PhotoBoothPage(container) {
             </div>
         `;
 
-        // 이벤트 핸들러 등록
+        // 4. 이벤트 핸들러 등록
         pageWrapper.querySelector('#start-capture-btn').addEventListener('click', renderCaptureScreen);
         
         const uploadBtn = pageWrapper.querySelector('#upload-photo-btn');
         const uploadInput = pageWrapper.querySelector('#photo-upload-input');
 
         uploadBtn.addEventListener('click', () => uploadInput.click());
-        // 유틸리티 함수에 renderResultScreen 콜백 전달
+        // handleFileSelection 유틸리티에 결과 화면 렌더링 함수(renderResultScreen)를 콜백으로 전달
         uploadInput.addEventListener('change', (e) => handleFileSelection(e, renderResultScreen));
     }
 
-    /** Step 2: 촬영 화면 렌더링 */
+    /**
+     * @private
+     * 촬영 프로세스의 두 번째 단계: 웹캠 미리보기 및 캡처 시퀀스 화면을 렌더링합니다.
+     */
     async function renderCaptureScreen() {
-        capturedImages.length = 0; // 새 촬영 시작 시 초기화
+        capturedImages.length = 0; // 새 촬영 시작 시 이미지 배열 초기화
 
+        // 1. HTML 템플릿 로드 (웹캠 뷰, 썸네일, 버튼 포함)
         pageWrapper.innerHTML = `
             <div id="capture-container" class="p-4 bg-white rounded-xl shadow-2xl">
                 <h2 class="text-2xl font-bold text-center mb-4 text-gray-700">포즈를 취해주세요!</h2>
@@ -103,43 +124,44 @@ export function PhotoBoothPage(container) {
         
         const handleStartShot = () => {
             startBtn.disabled = true;
-            // 유틸리티 함수 호출 및 타이머 cleanup 함수 저장
+            // startShotSequence 유틸리티를 호출하고, 시퀀스 중단 함수를 currentCleanup에 저장
             currentCleanup = startShotSequence(video, renderResultScreen, pageWrapper);
         };
 
         startBtn.addEventListener('click', handleStartShot);
         pageWrapper.querySelector('#cancel-btn').addEventListener('click', renderStartScreen);
 
-        // 1. 웹캠 스트림 시작
+        // 2. 웹캠 스트림 시작 (비동기)
         try {
-            // videoStream 상태 업데이트
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: 'user', 
-                    width: { ideal: 1280 }, 
-                    height: { ideal: 960 } 
-                } 
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } } 
             });
-            AppRouter.setVideoStream(stream);
+            // AppService 통해 전역 videoStream 상태 업데이트 및 비디오 요소에 연결
+            AppService.setVideoStream(stream);
             video.srcObject = stream;
             video.play();
         } catch (error) {
+            // 3. 웹캠 접근 실패 시 에러 모달 표시 및 시작 화면으로 복귀
             console.error("웹캠 접근 오류:", error);
             startBtn.disabled = true;
-            AppRouter.showAppMessage('카메라 접근 오류', '웹캠 접근에 실패했습니다. (HTTPS 환경 및 권한 확인 필요)', true);
+            AppService.showAppMessage('카메라 접근 오류', '웹캠 접근에 실패했습니다. (HTTPS 환경 및 권한 확인 필요)', true);
             renderStartScreen();
         }
     }
 
-    /** Step 3: 결과 화면 렌더링 */
+    /**
+     * @private
+     * 촬영 프로세스의 세 번째 단계: 완성된 네컷 사진과 다운로드 옵션을 렌더링합니다.
+     */
     function renderResultScreen() {
-        // 촬영 시퀀스 정리
+        // 1. 자원 정리 (촬영 시퀀스 및 웹캠)
         if (currentCleanup) {
             currentCleanup();
             currentCleanup = null;
         }
-        AppRouter.clearVideoStream(); // 스트림 정리
+        AppService.clearVideoStream(); // 웹캠 스트림 중지
 
+        // 2. HTML 템플릿 로드 (결과 이미지, 프레임 선택, 다운로드 버튼 포함)
         pageWrapper.innerHTML = `
             <div class="p-4 sm:p-8 bg-white rounded-xl shadow-2xl flex flex-col items-center gap-4 max-w-lg w-full">
                 <h2 class="text-3xl font-bold text-center mb-2 text-gray-800">✨ 완성된 네컷 사진 ✨</h2>
@@ -167,36 +189,44 @@ export function PhotoBoothPage(container) {
             </div>
         `;
         
-        // 이벤트 리스너 등록
+        // 3. 이벤트 리스너 등록
         pageWrapper.querySelector('#download-btn').addEventListener('click', () => downloadImage(pageWrapper));
         pageWrapper.querySelector('#remake-btn').addEventListener('click', renderStartScreen);
 
+        // 프레임 색상 변경 이벤트 처리
         pageWrapper.querySelectorAll('.frame-option-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const color = e.target.dataset.color;
-                updateFrameColor(color, pageWrapper); // 유틸리티 함수 호출
+                updateFrameColor(color, pageWrapper); // 유틸리티 함수 호출로 캔버스 재합성
+                // 선택된 버튼에 스타일 적용 (ring)
                 pageWrapper.querySelectorAll('.frame-option-btn').forEach(b => b.classList.remove('ring-blue-500', 'ring-offset-2'));
                 e.target.classList.add('ring-blue-500', 'ring-offset-2');
             });
         });
 
-        // 초기 합성 시작 (기본: 블랙 프레임)
+        // 4. 초기 합성 시작 (기본: 블랙 프레임)
         updateFrameColor('black', pageWrapper);
     }
 
-    // --- 초기 렌더링 및 메인 컨테이너 부착 ---
+    // -------------------------------------------------------------------------
+    // --- 컴포넌트 라이프사이클 (초기화 및 반환) ---
+    // -------------------------------------------------------------------------
+    
+    // 초기 렌더링: 페이지 진입 시 Start 화면을 표시
     renderStartScreen();
+    // 메인 라우터 컨테이너에 페이지의 DOM 요소를 부착
     container.appendChild(pageWrapper); 
     
-    // --- 페이지 전체 정리 함수 반환 ---
+    /**
+     * @returns {Function} 라우터가 페이지를 제거할 때 호출할 Cleanup 함수.
+     */
     return () => {
-        // 페이지를 떠날 때 웹캠 스트림과 타이머 모두 정리
-        AppRouter.clearVideoStream(); 
+        // 라우터 이동 시 웹캠 스트림과 타이머 모두 안전하게 정리
+        AppService.clearVideoStream(); 
         if (currentCleanup) {
             currentCleanup();
             currentCleanup = null;
         }
-        // container.innerHTML = ''; // router에서 처리
         console.log('PhotoBoothPage cleanup 완료.');
     };
 }
