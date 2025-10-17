@@ -1,11 +1,13 @@
 /**
  * 포토부스 페이지 (PhotoBoothPage)
  * 웹캠 미리보기 + 촬영 + 저장 기능 포함
- * @param {HTMLElement} container - 페이지가 렌더링될 DOM 요소
+ * @returns {HTMLElement} container - 페이지가 렌더링될 DOM 요소
  * @returns {Function} cleanup - 페이지가 사라질 때 호출될 정리 함수
  */
 
-export function PhotoBoothPage(container) {
+export function PhotoBoothPage() {
+  const container = document.createElement("div");
+  container.classList.add("photo-page");
   container.innerHTML = `
     <style>
       .photo-booth {
@@ -84,7 +86,7 @@ export function PhotoBoothPage(container) {
   const ctx = canvas.getContext('2d');
 
   let stream = null;
-  let currentBlob = null;
+  // let currentBlob = null;
 
   // --- 1️⃣ 웹캠 시작 ---
   async function startCamera() {
@@ -134,12 +136,22 @@ export function PhotoBoothPage(container) {
   // 페이지 진입 시 카메라 시작
   startCamera();
 
-  // --- cleanup 함수 ---
-  return () => {
+  // --- cleanup 함수 정의 ---
+  const cleanup = () => {
+    // 이벤트 리스너 제거 (필수는 아니지만 권장)
+    captureBtn.removeEventListener('click', capturePhoto);
+    saveBtn.removeEventListener('click', savePhoto);
+    retakeBtn.removeEventListener('click', retakePhoto);
+
     // 카메라 종료
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
-    container.innerHTML = '';
   };
+
+  // 2. 라우터가 사용할 수 있도록 cleanup 함수를 반환되는 DOM 요소에 속성으로 추가합니다.
+  container.cleanup = cleanup;
+
+  // 3. 생성한 최상위 DOM 요소를 반환합니다.
+  return container;
 }

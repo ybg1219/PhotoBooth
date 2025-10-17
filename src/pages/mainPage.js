@@ -1,5 +1,7 @@
+// MainPage.js
+
 import { router } from "../router.js";
-import { PhotoBoothPage } from "./photoBoothPage.js";
+// import { PhotoBoothPage } from "./photoBoothPage.js"; // 사용하지 않으므로 제거 가능
 
 export function MainPage() {
   const container = document.createElement("div");
@@ -18,9 +20,26 @@ export function MainPage() {
     </footer>
   `;
 
-  container.querySelector("#shootBtn").addEventListener("click", () => {
-    router.navigate("/photo"); // ✅ 여기서는 함수 실행 X
-  });
+  // --- 이벤트 등록 ---
+  const shootBtn = container.querySelector("#shootBtn");
+  const handleShootClick = () => {
+    router.navigate("/photo");
+  };
 
+  shootBtn.addEventListener("click", handleShootClick);
+
+  // --- Cleanup 함수 정의 및 추가 ---
+  const cleanup = () => {
+    // 1. 이벤트 리스너 제거 (주요 작업)
+    shootBtn.removeEventListener("click", handleShootClick);
+    
+    // 2. 이 페이지에는 정리할 외부 리소스(웹캠, 타이머 등)가 없으므로 추가 작업은 필요하지 않습니다.
+    console.log('✅ MainPage cleanup 완료.');
+  };
+
+  // 반환하는 DOM 요소에 cleanup 함수를 속성으로 추가합니다.
+  container.cleanup = cleanup;
+
+  // DOM 요소를 반환합니다.
   return container;
 }
