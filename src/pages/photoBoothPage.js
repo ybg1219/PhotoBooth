@@ -99,7 +99,7 @@ export function PhotoBoothPage(container) {
                 <h2 class="text-2xl font-bold text-center mb-4 text-gray-700">포즈를 취해주세요!</h2>
                 
                 <div class="relative">
-                    <video id="video-preview" autoplay playsinline class="rounded-lg"></video>
+                    <video id="video-preview" autoplay playsinline muted class="rounded-lg transform scale-x-[-1]"></video>
                     <div id="countdown-overlay"></div>
                 </div>
 
