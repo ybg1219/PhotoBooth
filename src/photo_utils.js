@@ -3,6 +3,47 @@
 // AppService 유틸리티 및 전역 상태 import
 import { AppService, CAPTURE_COUNT, capturedImages } from './main.js';
 
+// --- 캔버스 크기 상수 (독립적인 값만 남김) ---
+const CANVAS_WIDTH = 500;
+const PADDING = 20;
+const GAP = 15;
+const LOGO_HEIGHT = 50;
+
+
+const CUSTOM_FRAME_URLS = {
+    // 사용자의 실제 파일 경로로 교체
+    'black': './asset/black_frame.png', 
+    'white': './asset/white_frame.png',
+    'purple': './asset/purple_frame.png',
+    'blue': './asset/blue_frame.png',
+};
+
+
+/**
+ * @private
+ * 캔버스 합성에 필요한 동적 치수를 계산합니다.
+ * 이 함수는 CAPTURE_COUNT가 완전히 로드된 후에만 호출되어야 합니다.
+ * @returns {{width: number, height: number, photoWidth: number, photoHeight: number}}
+ */
+function getCanvasDimensions() {
+    const PHOTO_WIDTH = CANVAS_WIDTH - PADDING * 2;
+    const PHOTO_HEIGHT = (PHOTO_WIDTH / 4) * 3; // 4:3 비율 가정
+    
+    const TOTAL_HEIGHT = 
+        (PADDING * 2) +
+        (PHOTO_HEIGHT * CAPTURE_COUNT) + 
+        (GAP * (CAPTURE_COUNT - 1)) +
+        LOGO_HEIGHT;
+    
+    return {
+        width: CANVAS_WIDTH,
+        height: TOTAL_HEIGHT,
+        photoWidth: PHOTO_WIDTH,
+        photoHeight: PHOTO_HEIGHT
+    };
+}
+
+
 /**
  * @public
  * @async
@@ -160,53 +201,60 @@ export async function handleFileSelection(event, renderResultScreen) {
  * @param {HTMLElement} pageWrapper - 최종 캔버스를 포함하는 DOM 요소.
  */
 export function updateFrameColor(color, pageWrapper) {
-    // 캔버스 크기 관련 상수 (CAPTURE_COUNT에 종속적)
-    const CANVAS_WIDTH = 500;
-    const PADDING = 20;
-    const GAP = 15;
-    const LOGO_HEIGHT = 50;
-    const PHOTO_WIDTH = CANVAS_WIDTH - PADDING * 2;
-    const PHOTO_HEIGHT = (PHOTO_WIDTH / 4) * 3; // 4:3 비율 가정
-    
-    const TOTAL_HEIGHT = 
-        (PADDING * 2) +
-        (PHOTO_HEIGHT * CAPTURE_COUNT) + 
-        (GAP * (CAPTURE_COUNT - 1)) +
-        LOGO_HEIGHT;
-        
+    // 캔버스 치수를 함수 호출 시점에 계산하여 오류를 해결합니다.
+    const dimensions = getCanvasDimensions();
+
     const finalCanvas = pageWrapper.querySelector('#final-canvas');
     if (!finalCanvas) return;
     const ctx = finalCanvas.getContext('2d');
     
-    finalCanvas.width = CANVAS_WIDTH;
-    finalCanvas.height = TOTAL_HEIGHT;
+    finalCanvas.width = dimensions.width;
+    finalCanvas.height = dimensions.height;
 
-    // 1. 배경 (프레임) 색상 설정
-    ctx.fillStyle = color === 'black' ? '#1a1a1a' : '#ffffff';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, TOTAL_HEIGHT);
-
-    let currentY = PADDING;
-    let imagesLoaded = 0;
+    // -----------------------------------------------------------
+    // 1. 커스텀 프레임 이미지 로드 및 그리기 (PNG 배경 사용)
+    // -----------------------------------------------------------
+    const frameImg = new Image();
+    // 선택된 색상(키)에 따라 URL을 로드합니다. 키가 없으면 'black'을 기본으로 사용합니다.
+    frameImg.src = CUSTOM_FRAME_URLS[color] || CUSTOM_FRAME_URLS['black'];
     
-    // 2. 이미지들을 순서대로 캔버스에 그리기 (비동기 처리)
-    capturedImages.forEach((dataUrl) => {
-        const photoImg = new Image();
-        photoImg.onload = () => {
-            ctx.drawImage(photoImg, PADDING, currentY, PHOTO_WIDTH, PHOTO_HEIGHT);
+    // 이미지가 로드될 때까지 기다렸다가 그리기 시작
+    frameImg.onload = () => {
+        // 1. 배경 이미지 (PNG 프레임) 그리기
+        ctx.clearRect(0, 0, dimensions.width, dimensions.height);
+        ctx.drawImage(frameImg, 0, 0, dimensions.width, dimensions.height);
 
-            currentY += PHOTO_HEIGHT + GAP;
-            imagesLoaded++;
+        let currentY = PADDING;
+        let imagesLoaded = 0;
+        
+        // 2. 캡처된 사진들 (4컷)을 프레임 슬롯 위에 그리기
+        capturedImages.forEach((dataUrl) => {
+            const photoImg = new Image();
+            photoImg.onload = () => {
+                // 사진을 캔버스 슬롯 위치에 그립니다.
+                ctx.drawImage(photoImg, PADDING, currentY, dimensions.photoWidth, dimensions.photoHeight);
 
-            // 3. 마지막 이미지 로드 후 로고 추가
-            if (imagesLoaded === CAPTURE_COUNT) {
-                ctx.fillStyle = color === 'black' ? '#ffffff' : '#1a1a1a';
-                ctx.font = '30px Inter, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('WEB FOUR CUT', CANVAS_WIDTH / 2, TOTAL_HEIGHT - LOGO_HEIGHT / 3);
-            }
-        };
-        photoImg.src = dataUrl;
-    });
+                currentY += dimensions.photoHeight + GAP;
+                imagesLoaded++;
+
+                // 3. 로고 텍스트 추가 (모든 사진이 그려진 후)
+                if (imagesLoaded === CAPTURE_COUNT) {
+                    // 텍스트 색상을 프레임 색상에 맞춰 대비되도록 설정합니다.
+                    ctx.fillStyle = (color === 'black' || color === 'pink') ? '#ffffff' : '#1a1a1a'; 
+                    ctx.font = '30px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    //ctx.fillText('WEB FOUR CUT', dimensions.width / 2, dimensions.height - LOGO_HEIGHT / 3);
+                }
+            };
+            photoImg.src = dataUrl;
+        });
+    };
+
+    // 로드 실패 시 오류 메시지 표시
+    frameImg.onerror = () => {
+        AppRouter.showAppMessage('프레임 로드 오류', '커스텀 프레임 이미지를 로드할 수 없습니다. URL을 확인해주세요.', true);
+        // 오류 발생 시 사진 합성을 시도하지 않고 종료합니다.
+    };
 }
 
 /**

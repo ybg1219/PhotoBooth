@@ -134,7 +134,7 @@ export function PhotoBoothPage(container) {
         // 2. 웹캠 스트림 시작 (비동기)
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } } 
+                video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } } 
             });
             // AppService 통해 전역 videoStream 상태 업데이트 및 비디오 요소에 연결
             AppService.setVideoStream(stream);
@@ -177,6 +177,12 @@ export function PhotoBoothPage(container) {
                     <button id="frame-white-btn" data-color="white" class="frame-option-btn bg-gray-100 text-gray-900 font-semibold py-2 px-4 rounded-lg shadow-md">
                         화이트 프레임
                     </button>
+                    <button id="frame-purple-btn" data-color="purple" class="frame-option-btn bg-purple-400 text-white font-semibold py-2 px-4 rounded-lg shadow-md" aria-label="퍼플 프레임 선택">
+                        퍼플 프레임
+                    </button>
+                    <button id="frame-blue-btn" data-color="blue" class="frame-option-btn bg-blue-400 text-white font-semibold py-2 px-4 rounded-lg shadow-md" aria-label="블루 프레임 선택">
+                        블루 프레임
+                    </button>
                 </div>
 
                 <button id="download-btn" class="capture-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full shadow-lg text-xl w-full">
@@ -205,7 +211,7 @@ export function PhotoBoothPage(container) {
         });
 
         // 4. 초기 합성 시작 (기본: 블랙 프레임)
-        updateFrameColor('black', pageWrapper);
+        updateFrameColor('purple', pageWrapper);
     }
 
     // -------------------------------------------------------------------------
