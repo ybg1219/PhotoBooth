@@ -314,22 +314,46 @@ export function PhotoBoothPage(container) {
         });
 
         // 파일 드롭 처리
-        dropArea.addEventListener('drop', (e) => {
+        // 파일 드롭 처리 (Async/Await를 사용하여 안정성 확보)
+        dropArea.addEventListener('drop', async (e) => {
             let dt = e.dataTransfer;
             let files = dt.files;
+            
+            const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
 
-            Array.from(files).forEach(file => {
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        // 이미지 데이터를 전역 배열에 추가
-                        finalImagesViewer.push(e.target.result);
-                        // 갤러리 업데이트
-                        updateViewerGallery(gallery);
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
+            if (validFiles.length === 0) {
+                 AppService.showAppMessage('파일 없음', '유효한 이미지 파일을 찾을 수 없습니다.', true); 
+                 return;
+            }
+
+            AppService.showLoading('이미지 로딩 및 저장 중...');
+
+            try {
+                // Promise.all 또는 for...of를 사용하여 모든 파일 로딩을 기다립니다.
+                const loadedImagePromises = validFiles.map(file => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                });
+
+                const loadedImages = await Promise.all(loadedImagePromises);
+
+                // 모든 이미지 로드 완료: 전역 배열에 추가 및 저장
+                finalImagesViewer.unshift(...loadedImages);
+                saveViewerData(); // 🌟 모든 이미지 로드 후 최종 저장
+
+                // 로딩 메시지 해제 및 UI 업데이트
+                AppService.handleLocationChange(); // 뷰어 화면을 다시 렌더링하여 로딩 해제 및 업데이트
+                AppService.showAppMessage('로드 완료', `${loadedImages.length}장의 사진을 뷰어에 추가했습니다.`, false); 
+
+            } catch (error) {
+                 console.error("파일 로딩 중 오류 발생:", error);
+                 AppService.showAppMessage('처리 오류', '파일을 로드하는 중 오류가 발생했습니다. 파일 크기를 확인해주세요.', true);
+                 AppService.handleLocationChange(); // 에러 발생 시 현재 화면 유지 (로딩 해제)
+            }
         }, false);
 
         // 3. 페이지 이동 버튼 연결
