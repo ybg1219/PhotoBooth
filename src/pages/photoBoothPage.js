@@ -1,5 +1,5 @@
 // photoboothpage.js
-import { AppService, CAPTURE_COUNT, capturedImages, finalImagesViewer, saveViewerData  } from '../main.js';
+import { AppService, CAPTURE_COUNT, capturedImages, finalImagesViewer, saveViewerData } from '../main.js';
 import {
     startShotSequence,
     handleFileSelection,
@@ -72,6 +72,10 @@ export function PhotoBoothPage(container) {
                     파일 업로드 (${CAPTURE_COUNT}장)
                 </button>
                 <input type="file" id="photo-upload-input" accept="image/*" multiple style="display: none;">
+                
+                <button id="start-viewer-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-full w-full text-lg" aria-label="저장된 사진 뷰어 보기">
+                    🖼️ 사진 뷰어 (${finalImagesViewer.length}개)
+                </button>
             </div>
         `;
 
@@ -80,6 +84,7 @@ export function PhotoBoothPage(container) {
 
         const uploadBtn = pageWrapper.querySelector('#upload-photo-btn');
         const uploadInput = pageWrapper.querySelector('#photo-upload-input');
+        pageWrapper.querySelector('#start-viewer-btn').addEventListener('click', renderViewerScreen);
 
         uploadBtn.addEventListener('click', () => uploadInput.click());
         // handleFileSelection 유틸리티에 결과 화면 렌더링 함수(renderResultScreen)를 콜백으로 전달
@@ -223,6 +228,48 @@ export function PhotoBoothPage(container) {
      * 로컬 파일 드래그 앤 드롭을 통해 이미지 데이터를 추가할 수 있습니다.
      */
     function renderViewerScreen() {
+
+        // 갤러리 DOM을 업데이트하고 리스너를 재연결하는 내부 함수
+        const updateViewerGallery = () => {
+            const gallery = pageWrapper.querySelector('#photo-gallery');
+            if (!gallery) return;
+
+            // 갤러리 마크업 업데이트 (삭제 버튼 포함)
+            gallery.innerHTML = finalImagesViewer.map((dataUrl, index) => `
+                <div class="relative w-full rounded-lg overflow-hidden shadow-md bg-white border border-gray-200 aspect-[4/12] flex items-center justify-center">
+                    <img src="${dataUrl}" alt="Final Photo Strip ${index + 1}" class="w-full h-full object-cover" />
+                    <span class="absolute top-2 left-2 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        # ${finalImagesViewer.length - index}
+                    </span>
+                    <!-- 삭제 버튼 마크업 -->
+                    <button class="delete-photo-btn absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm" 
+                            data-index="${index}" aria-label="사진 삭제">
+                        &times;
+                    </button>
+                </div>
+            `).join('');
+            if (finalImagesViewer.length === 0) {
+                gallery.innerHTML = `<p class="col-span-full text-center text-gray-500">아직 저장된 네컷 사진이 없습니다. 다운로드 파일을 끌어 놓으세요.</p>`;
+            }
+
+            //  삭제 버튼 리스너 연결 및 로컬 스토리지 저장
+            pageWrapper.querySelectorAll('.delete-photo-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    // 인덱스를 사용하여 배열에서 해당 항목 제거
+                    finalImagesViewer.splice(index, 1);
+                    saveViewerData(); // 로컬 스토리지 업데이트
+                    updateViewerGallery(); // 갤러리 UI 업데이트
+                });
+            });
+
+            // 뷰어 버튼 카운트 업데이트 (결과 화면으로 돌아가기 버튼의 텍스트 업데이트)
+            const resultBtn = pageWrapper.querySelector('#back-to-result-btn');
+            if (resultBtn) {
+                resultBtn.textContent = `← 결과 화면으로 돌아가기 (${finalImagesViewer.length}개 저장됨)`;
+            }
+        };
+
         const viewerHtml = `
             <div class="p-4 sm:p-8 bg-white rounded-xl shadow-2xl flex flex-col items-center gap-6 max-w-4xl w-full h-full sm:h-auto overflow-y-auto">
                 <h2 class="text-3xl font-bold text-center text-gray-800">🖼️ 로컬 저장된 네컷 모음</h2>
@@ -284,22 +331,6 @@ export function PhotoBoothPage(container) {
                 }
             });
         }, false);
-
-        // 갤러리 DOM 업데이트 함수
-        const updateViewerGallery = (targetGallery) => {
-            targetGallery.innerHTML = finalImagesViewer.map((dataUrl, index) => `
-                <div class="relative w-full rounded-lg overflow-hidden shadow-md bg-white border border-gray-200">
-                    <img src="${dataUrl}" alt="Final Photo Strip ${index + 1}" class="w-full h-auto object-contain" />
-                    <span class="absolute top-2 left-2 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                        # ${index + 1}
-                    </span>
-                </div>
-            `).join('');
-            if (finalImagesViewer.length === 0) {
-                 targetGallery.innerHTML = `<p class="col-span-full text-center text-gray-500">아직 저장된 네컷 사진이 없습니다.</p>`;
-            }
-        };
-
 
         // 3. 페이지 이동 버튼 연결
         pageWrapper.querySelector('#back-to-result-btn').addEventListener('click', renderResultScreen);

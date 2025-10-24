@@ -1,7 +1,7 @@
 // photo_utils.js
 
 // AppService 유틸리티 및 전역 상태 import
-import { AppService, CAPTURE_COUNT, capturedImages } from './main.js';
+import { AppService, CAPTURE_COUNT, capturedImages, finalImagesViewer, saveViewerData } from './main.js';
 
 // --- 캔버스 크기 상수 (독립적인 값만 남김) ---
 const CANVAS_WIDTH = 500;

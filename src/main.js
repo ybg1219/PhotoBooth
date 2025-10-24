@@ -45,6 +45,46 @@ export let finalImagesViewer = [];
  */
 export const CAPTURE_COUNT = 4;
 
+// =========================================================================
+// 로컬 스토리지 데이터 관리
+// =========================================================================
+
+/**
+ * 로컬 스토리지에서 뷰어 데이터를 불러와 finalImagesViewer 배열에 저장합니다.
+ */
+function loadViewerData() {
+    try {
+        const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (storedData) {
+            finalImagesViewer.length = 0; // 배열 내용 초기화
+            const parsedData = JSON.parse(storedData);
+            if (Array.isArray(parsedData)) {
+                // 배열 내용을 복사하여 참조를 유지합니다.
+                finalImagesViewer.push(...parsedData);
+            }
+        }
+    } catch (e) {
+        console.error("로컬 스토리지 데이터 로드 오류:", e);
+    }
+}
+
+/**
+ * 현재 finalImagesViewer 배열의 내용을 로컬 스토리지에 저장합니다.
+ */
+export function saveViewerData() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(finalImagesViewer));
+    } catch (e) {
+        // AppService가 초기화된 후에는 모달을 통해 메시지를 표시할 수 있습니다.
+        if (AppService) {
+             AppService.showAppMessage('저장 오류', '로컬 저장소 용량이 초과되었습니다. 일부 사진을 삭제해야 할 수 있습니다.', true);
+        }
+        console.error("로컬 스토리지 데이터 저장 오류:", e);
+    }
+}
+
+loadViewerData();
+
 
 // =========================================================================
 // 2. AppService 객체 (전역 유틸리티 및 상태 접근자)
@@ -170,40 +210,4 @@ window.onload = () => {
     });
 };
 
-// =========================================================================
-// 4. 로컬 스토리지 데이터 관리
-// =========================================================================
 
-/**
- * 로컬 스토리지에서 뷰어 데이터를 불러와 finalImagesViewer 배열에 저장합니다.
- */
-function loadViewerData() {
-    try {
-        const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (storedData) {
-            finalImagesViewer.length = 0; // 배열 내용 초기화
-            const parsedData = JSON.parse(storedData);
-            if (Array.isArray(parsedData)) {
-                // 배열 내용을 복사하여 참조를 유지합니다.
-                finalImagesViewer.push(...parsedData);
-            }
-        }
-    } catch (e) {
-        console.error("로컬 스토리지 데이터 로드 오류:", e);
-    }
-}
-
-/**
- * 현재 finalImagesViewer 배열의 내용을 로컬 스토리지에 저장합니다.
- */
-export function saveViewerData() {
-    try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(finalImagesViewer));
-    } catch (e) {
-        // AppService가 초기화된 후에는 모달을 통해 메시지를 표시할 수 있습니다.
-        if (AppService) {
-             AppService.showAppMessage('저장 오류', '로컬 저장소 용량이 초과되었습니다. 일부 사진을 삭제해야 할 수 있습니다.', true);
-        }
-        console.error("로컬 스토리지 데이터 저장 오류:", e);
-    }
-}
