@@ -269,12 +269,18 @@ export function downloadImage(pageWrapper) {
         return;
     }
 
+    // 다운로드할 때마다 고유 번호(예: 타임스탬프)를 사용하여 파일명을 생성합니다.
+    const uniqueId = new Date().getTime(); 
+
     finalCanvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.setAttribute('aria-label', '웹 네컷 이미지 파일 다운로드'); 
         a.href = url;
-        a.download = `web_fourcut_${new Date().getTime()}.png`;
+        
+        // 🚨 요청하신 파일명 형식으로 변경: photo4cut_<고유번호>.png
+        a.download = `photo4cut_${uniqueId}.png`; 
+        
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

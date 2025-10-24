@@ -1,10 +1,10 @@
 // photoboothpage.js
 import { AppService, CAPTURE_COUNT, capturedImages } from '../main.js';
-import { 
-    startShotSequence, 
-    handleFileSelection, 
-    updateFrameColor, 
-    downloadImage 
+import {
+    startShotSequence,
+    handleFileSelection,
+    updateFrameColor,
+    downloadImage
 } from '../photo_utils.js';
 
 
@@ -14,24 +14,24 @@ import {
  * * @param {HTMLElement} container - 페이지가 렌더링될 DOM 요소 (#app).
  * @returns {Function} 페이지가 사라질 때 호출될 정리(cleanup) 함수.
  */
-export function PhotoBoothPage(container) { 
+export function PhotoBoothPage(container) {
     // 로직 시작 전 전역 배열 초기화: 새 촬영을 위해 이전에 찍은 사진들을 지웁니다.
-    capturedImages.length = 0; 
-    
+    capturedImages.length = 0;
+
     /** * @private
      * @type {HTMLElement}
      * 이 페이지의 모든 내용을 담을 최상위 DOM Wrapper.
      */
     const pageWrapper = document.createElement("div");
     pageWrapper.classList.add("photo-page-wrapper", "w-full", "h-full", "flex", "flex-col", "items-center", "justify-center");
-    
+
     /**
      * @private
      * @type {Function|null}
      * startShotSequence에서 반환된 타이머 및 시퀀스 중지 cleanup 함수를 저장. 
      * 촬영 도중 취소하거나 페이지를 떠날 때 사용됨.
      */
-    let currentCleanup = null; 
+    let currentCleanup = null;
 
     // -------------------------------------------------------------------------
     // --- 화면 렌더링 함수 (단계별) ---
@@ -47,10 +47,10 @@ export function PhotoBoothPage(container) {
             currentCleanup();
             currentCleanup = null;
         }
-        
+
         // 2. 웹캠 스트림 정리: 웹캠 사용을 중지하고 하드웨어 자원을 해제합니다.
-        AppService.clearVideoStream(); 
-        
+        AppService.clearVideoStream();
+
         // 3. HTML 템플릿 로드
         pageWrapper.innerHTML = `
             <div class="p-8 text-center max-w-sm w-full mx-auto">
@@ -77,7 +77,7 @@ export function PhotoBoothPage(container) {
 
         // 4. 이벤트 핸들러 등록
         pageWrapper.querySelector('#start-capture-btn').addEventListener('click', renderCaptureScreen);
-        
+
         const uploadBtn = pageWrapper.querySelector('#upload-photo-btn');
         const uploadInput = pageWrapper.querySelector('#photo-upload-input');
 
@@ -104,9 +104,9 @@ export function PhotoBoothPage(container) {
                 </div>
 
                 <div id="thumbnails-container" class="flex justify-center gap-2 p-2 bg-gray-100 rounded-lg shadow-inner">
-                    ${Array(CAPTURE_COUNT).fill(0).map((_, i) => 
-                        `<div id="thumb-${i}" class="w-1/4 h-12 bg-gray-400 rounded-sm transition duration-300" style="opacity: 0.5;"></div>`
-                    ).join('')}
+                    ${Array(CAPTURE_COUNT).fill(0).map((_, i) =>
+            `<div id="thumb-${i}" class="w-1/4 h-12 bg-gray-400 rounded-sm transition duration-300" style="opacity: 0.5;"></div>`
+        ).join('')}
                 </div>
 
                 <button id="start-shot-btn" class="capture-button bg-pink-500 hover:bg-pink-600 text-white font-bold py-3 rounded-full shadow-lg text-lg">
@@ -121,7 +121,7 @@ export function PhotoBoothPage(container) {
 
         const video = pageWrapper.querySelector('#video-preview');
         const startBtn = pageWrapper.querySelector('#start-shot-btn');
-        
+
         const handleStartShot = () => {
             startBtn.disabled = true;
             // startShotSequence 유틸리티를 호출하고, 시퀀스 중단 함수를 currentCleanup에 저장
@@ -133,8 +133,8 @@ export function PhotoBoothPage(container) {
 
         // 2. 웹캠 스트림 시작 (비동기)
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } } 
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } }
             });
             // AppService 통해 전역 videoStream 상태 업데이트 및 비디오 요소에 연결
             AppService.setVideoStream(stream);
@@ -188,15 +188,19 @@ export function PhotoBoothPage(container) {
                 <button id="download-btn" class="capture-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full shadow-lg text-xl w-full">
                     📥 이미지 다운로드
                 </button>
+                <button id="viewer-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-8 rounded-full shadow-lg text-xl w-full sm:w-1/2" aria-label="사진 뷰어 보기">
+                    🖼️ 사진 뷰어
+                </button>
                 
                 <button id="remake-btn" class="text-md text-gray-500 hover:text-gray-700 mt-2">
                     다시 만들기
                 </button>
             </div>
         `;
-        
+
         // 3. 이벤트 리스너 등록
         pageWrapper.querySelector('#download-btn').addEventListener('click', () => downloadImage(pageWrapper));
+        pageWrapper.querySelector('#viewer-btn').addEventListener('click', renderViewerScreen); // 뷰어 버튼 연결
         pageWrapper.querySelector('#remake-btn').addEventListener('click', renderStartScreen);
 
         // 프레임 색상 변경 이벤트 처리
@@ -213,22 +217,58 @@ export function PhotoBoothPage(container) {
         // 4. 초기 합성 시작 (기본: 블랙 프레임)
         updateFrameColor('purple', pageWrapper);
     }
+    /**
+     * @private
+     * 촬영된 원본 사진들을 모아서 보여주는 뷰어 화면을 렌더링합니다.
+     */
+    function renderViewerScreen() {
+        if (capturedImages.length === 0) {
+            AppRouter.showAppMessage('사진 없음', '현재 저장된 사진이 없습니다. 먼저 촬영하거나 파일을 업로드해주세요.', true);
+            renderResultScreen();
+            return;
+        }
+
+        // 1. HTML 템플릿 로드 (사진 갤러리)
+        pageWrapper.innerHTML = `
+            <div class="p-4 sm:p-8 bg-white rounded-xl shadow-2xl flex flex-col items-center gap-6 max-w-4xl w-full h-full sm:h-auto overflow-y-auto">
+                <h2 class="text-3xl font-bold text-center text-gray-800">📸 원본 사진 뷰어</h2>
+                
+                <div id="photo-gallery" class="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full p-4 bg-gray-100 rounded-lg">
+                    ${capturedImages.map((dataUrl, index) => `
+                        <div class="relative w-full aspect-square bg-gray-300 rounded-lg overflow-hidden shadow-md">
+                            <img src="${dataUrl}" alt="Captured Photo ${index + 1}" class="w-full h-full object-cover transform scale-x-[-1]" />
+                            <span class="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                # ${index + 1}
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <button id="back-to-result-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg text-lg" aria-label="결과 화면으로 돌아가기">
+                    ← 결과 화면으로 돌아가기
+                </button>
+            </div>
+        `;
+
+        // 2. 이벤트 리스너 등록
+        pageWrapper.querySelector('#back-to-result-btn').addEventListener('click', renderResultScreen);
+    }
 
     // -------------------------------------------------------------------------
     // --- 컴포넌트 라이프사이클 (초기화 및 반환) ---
     // -------------------------------------------------------------------------
-    
+
     // 초기 렌더링: 페이지 진입 시 Start 화면을 표시
     renderStartScreen();
     // 메인 라우터 컨테이너에 페이지의 DOM 요소를 부착
-    container.appendChild(pageWrapper); 
-    
+    container.appendChild(pageWrapper);
+
     /**
      * @returns {Function} 라우터가 페이지를 제거할 때 호출할 Cleanup 함수.
      */
     return () => {
         // 라우터 이동 시 웹캠 스트림과 타이머 모두 안전하게 정리
-        AppService.clearVideoStream(); 
+        AppService.clearVideoStream();
         if (currentCleanup) {
             currentCleanup();
             currentCleanup = null;
