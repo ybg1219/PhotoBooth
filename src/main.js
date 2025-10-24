@@ -10,6 +10,14 @@ import { PhotoBoothPage } from "./pages/photoBoothPage.js";
 
 /**
  * @private
+ * @constant
+ * @type {string}
+ * 로컬 스토리지에 뷰어 데이터를 저장할 때 사용할 키.
+ */
+const LOCAL_STORAGE_KEY = 'webFourCutViewerData';
+
+/**
+ * @private
  * @type {MediaStream|null}
  * 현재 활성화된 웹캠 스트림 객체. PhotoBoothPage에서 생성되며, 라우트 전환 시 해제(cleanup)됨.
  */
@@ -21,6 +29,13 @@ let videoStream = null;
  * 촬영된 사진의 데이터 URL(Data URL) 목록. photo_utils.js에서 사용됨.
  */
 export let capturedImages = [];
+
+/**
+ * @public
+ * @type {string[]}
+ * 뷰어 화면에서 보여줄 최종 압축 이미지 데이터 목록 (localStorage에 영구 저장됨).
+ */
+export let finalImagesViewer = [];
 
 /**
  * @public
@@ -154,3 +169,41 @@ window.onload = () => {
         });
     });
 };
+
+// =========================================================================
+// 4. 로컬 스토리지 데이터 관리
+// =========================================================================
+
+/**
+ * 로컬 스토리지에서 뷰어 데이터를 불러와 finalImagesViewer 배열에 저장합니다.
+ */
+function loadViewerData() {
+    try {
+        const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (storedData) {
+            finalImagesViewer.length = 0; // 배열 내용 초기화
+            const parsedData = JSON.parse(storedData);
+            if (Array.isArray(parsedData)) {
+                // 배열 내용을 복사하여 참조를 유지합니다.
+                finalImagesViewer.push(...parsedData);
+            }
+        }
+    } catch (e) {
+        console.error("로컬 스토리지 데이터 로드 오류:", e);
+    }
+}
+
+/**
+ * 현재 finalImagesViewer 배열의 내용을 로컬 스토리지에 저장합니다.
+ */
+export function saveViewerData() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(finalImagesViewer));
+    } catch (e) {
+        // AppService가 초기화된 후에는 모달을 통해 메시지를 표시할 수 있습니다.
+        if (AppService) {
+             AppService.showAppMessage('저장 오류', '로컬 저장소 용량이 초과되었습니다. 일부 사진을 삭제해야 할 수 있습니다.', true);
+        }
+        console.error("로컬 스토리지 데이터 저장 오류:", e);
+    }
+}

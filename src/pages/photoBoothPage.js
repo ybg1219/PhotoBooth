@@ -1,5 +1,5 @@
 // photoboothpage.js
-import { AppService, CAPTURE_COUNT, capturedImages } from '../main.js';
+import { AppService, CAPTURE_COUNT, capturedImages, finalImagesViewer, saveViewerData  } from '../main.js';
 import {
     startShotSequence,
     handleFileSelection,
@@ -219,29 +219,31 @@ export function PhotoBoothPage(container) {
     }
     /**
      * @private
-     * 촬영된 원본 사진들을 모아서 보여주는 뷰어 화면을 렌더링합니다.
+     * 촬영된 최종 네컷 사진들을 모아서 보여주는 뷰어 화면을 렌더링합니다.
+     * 로컬 파일 드래그 앤 드롭을 통해 이미지 데이터를 추가할 수 있습니다.
      */
     function renderViewerScreen() {
-        if (capturedImages.length === 0) {
-            AppRouter.showAppMessage('사진 없음', '현재 저장된 사진이 없습니다. 먼저 촬영하거나 파일을 업로드해주세요.', true);
-            renderResultScreen();
-            return;
-        }
-
-        // 1. HTML 템플릿 로드 (사진 갤러리)
-        pageWrapper.innerHTML = `
+        const viewerHtml = `
             <div class="p-4 sm:p-8 bg-white rounded-xl shadow-2xl flex flex-col items-center gap-6 max-w-4xl w-full h-full sm:h-auto overflow-y-auto">
-                <h2 class="text-3xl font-bold text-center text-gray-800">📸 원본 사진 뷰어</h2>
-                
-                <div id="photo-gallery" class="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full p-4 bg-gray-100 rounded-lg">
-                    ${capturedImages.map((dataUrl, index) => `
-                        <div class="relative w-full aspect-square bg-gray-300 rounded-lg overflow-hidden shadow-md">
-                            <img src="${dataUrl}" alt="Captured Photo ${index + 1}" class="w-full h-full object-cover transform scale-x-[-1]" />
-                            <span class="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs font-bold px-2 py-1 rounded-full">
+                <h2 class="text-3xl font-bold text-center text-gray-800">🖼️ 로컬 저장된 네컷 모음</h2>
+                <p class="text-md text-gray-500">
+                    다운로드한 **.png 파일을 아래 영역에 끌어 놓거나 (Drag & Drop)** 앨범을 확인하세요. (새로고침 시 사라집니다.)
+                </p>
+
+                <div id="drop-area" class="w-full border-4 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition min-h-[150px]">
+                    <p class="text-lg font-semibold text-gray-600">여기에 다운로드한 네컷 PNG 파일을 끌어 놓으세요.</p>
+                </div>
+
+                <div id="photo-gallery" class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full p-4 bg-gray-100 rounded-lg">
+                    ${finalImagesViewer.map((dataUrl, index) => `
+                        <div class="relative w-full rounded-lg overflow-hidden shadow-md bg-white border border-gray-200">
+                            <img src="${dataUrl}" alt="Final Photo Strip ${index + 1}" class="w-full h-auto object-contain" />
+                            <span class="absolute top-2 left-2 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                                 # ${index + 1}
                             </span>
                         </div>
                     `).join('')}
+                    ${finalImagesViewer.length === 0 ? `<p class="col-span-full text-center text-gray-500">아직 저장된 네컷 사진이 없습니다.</p>` : ''}
                 </div>
 
                 <button id="back-to-result-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg text-lg" aria-label="결과 화면으로 돌아가기">
@@ -250,7 +252,56 @@ export function PhotoBoothPage(container) {
             </div>
         `;
 
-        // 2. 이벤트 리스너 등록
+        pageWrapper.innerHTML = viewerHtml;
+
+        // 2. 이벤트 핸들러 등록 (Drag & Drop)
+        const dropArea = pageWrapper.querySelector('#drop-area');
+        const gallery = pageWrapper.querySelector('#photo-gallery');
+
+        // 기본 브라우저 이벤트 방지
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        // 파일 드롭 처리
+        dropArea.addEventListener('drop', (e) => {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        // 이미지 데이터를 전역 배열에 추가
+                        finalImagesViewer.push(e.target.result);
+                        // 갤러리 업데이트
+                        updateViewerGallery(gallery);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }, false);
+
+        // 갤러리 DOM 업데이트 함수
+        const updateViewerGallery = (targetGallery) => {
+            targetGallery.innerHTML = finalImagesViewer.map((dataUrl, index) => `
+                <div class="relative w-full rounded-lg overflow-hidden shadow-md bg-white border border-gray-200">
+                    <img src="${dataUrl}" alt="Final Photo Strip ${index + 1}" class="w-full h-auto object-contain" />
+                    <span class="absolute top-2 left-2 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        # ${index + 1}
+                    </span>
+                </div>
+            `).join('');
+            if (finalImagesViewer.length === 0) {
+                 targetGallery.innerHTML = `<p class="col-span-full text-center text-gray-500">아직 저장된 네컷 사진이 없습니다.</p>`;
+            }
+        };
+
+
+        // 3. 페이지 이동 버튼 연결
         pageWrapper.querySelector('#back-to-result-btn').addEventListener('click', renderResultScreen);
     }
 

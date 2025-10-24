@@ -8,7 +8,7 @@ const CANVAS_WIDTH = 500;
 const PADDING = 20;
 const GAP = 15;
 const LOGO_HEIGHT = 50;
-
+const JPEG_QUALITY = 0.8; // 🌟 새로 추가: JPEG 압축 품질 (0.0 ~ 1.0)
 
 const CUSTOM_FRAME_URLS = {
     // 사용자의 실제 파일 경로로 교체
@@ -265,26 +265,33 @@ export function updateFrameColor(color, pageWrapper) {
 export function downloadImage(pageWrapper) {
     const finalCanvas = pageWrapper.querySelector('#final-canvas');
     if (!finalCanvas) {
-        AppService.showAppMessage('다운로드 오류', '완성된 이미지를 찾을 수 없습니다.', true);
+        AppRouter.showAppMessage('다운로드 오류', '완성된 이미지를 찾을 수 없습니다.', true);
         return;
     }
-
-    // 다운로드할 때마다 고유 번호(예: 타임스탬프)를 사용하여 파일명을 생성합니다.
+    
     const uniqueId = new Date().getTime(); 
 
+    // 🌟🌟 변경된 로직: JPEG 압축 적용 (MIME Type: image/jpeg, 품질: 0.8) 🌟🌟
     finalCanvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.setAttribute('aria-label', '웹 네컷 이미지 파일 다운로드'); 
         a.href = url;
         
-        // 🚨 요청하신 파일명 형식으로 변경: photo4cut_<고유번호>.png
-        a.download = `photo4cut_${uniqueId}.png`; 
+        // 파일명 설정 (JPEG 압축을 사용했으므로 확장자를 .jpeg로 변경)
+        a.download = `photo4cut_${uniqueId}.jpeg`; 
         
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        
+        // 뷰어 저장을 위해 최종 이미지 데이터(Base64)를 배열에 추가 (JPEG 압축 적용)
+        finalImagesViewer.push(finalCanvas.toDataURL('image/jpeg', JPEG_QUALITY));
+        
+        // 배열에 추가 후, 로컬 스토리지에 저장합니다.
+        saveViewerData(); 
+
         // 메모리 관리를 위해 URL 해제
         URL.revokeObjectURL(url);
-    }, 'image/png');
+    }, 'image/jpeg', JPEG_QUALITY); // toBlob 호출 시에도 JPEG 타입과 품질을 지정
 }
