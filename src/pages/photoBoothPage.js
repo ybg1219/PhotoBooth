@@ -265,8 +265,13 @@ export function PhotoBoothPage(container) {
 
             // 뷰어 버튼 카운트 업데이트 (결과 화면으로 돌아가기 버튼의 텍스트 업데이트)
             const resultBtn = pageWrapper.querySelector('#back-to-result-btn');
-            if (resultBtn) {
-                resultBtn.textContent = `← 결과 화면으로 돌아가기 (${finalImagesViewer.length}개 저장됨)`;
+            if(resultBtn) {
+                 resultBtn.textContent = `← 결과 화면으로 돌아가기 (${finalImagesViewer.length}개 저장됨)`;
+            }
+            // 시작 화면 뷰어 버튼 카운트 업데이트 (라우터의 도움 없이 직접 처리)
+            const startViewerBtn = document.querySelector('#start-viewer-btn');
+            if (startViewerBtn) {
+                 startViewerBtn.textContent = `🖼️ 사진 뷰어 (${finalImagesViewer.length}개)`;
             }
         };
 
@@ -282,17 +287,7 @@ export function PhotoBoothPage(container) {
                 </div>
 
                 <div id="photo-gallery" class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full p-4 bg-gray-100 rounded-lg">
-                    ${finalImagesViewer.map((dataUrl, index) => `
-                        <div class="relative w-full rounded-lg overflow-hidden shadow-md bg-white border border-gray-200">
-                            <img src="${dataUrl}" alt="Final Photo Strip ${index + 1}" class="w-full h-auto object-contain" />
-                            <span class="absolute top-2 left-2 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                                # ${index + 1}
-                            </span>
-                        </div>
-                    `).join('')}
-                    ${finalImagesViewer.length === 0 ? `<p class="col-span-full text-center text-gray-500">아직 저장된 네컷 사진이 없습니다.</p>` : ''}
-                </div>
-
+                    <!-- 갤러리 내용은 JS에서 업데이트됩니다 --></div>
                 <button id="back-to-result-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg text-lg" aria-label="결과 화면으로 돌아가기">
                     ← 결과 화면으로 돌아가기
                 </button>
@@ -300,20 +295,26 @@ export function PhotoBoothPage(container) {
         `;
 
         pageWrapper.innerHTML = viewerHtml;
+        updateViewerGallery(); // 초기 갤러리 렌더링
+
 
         // 2. 이벤트 핸들러 등록 (Drag & Drop)
         const dropArea = pageWrapper.querySelector('#drop-area');
-        const gallery = pageWrapper.querySelector('#photo-gallery');
 
-        // 기본 브라우저 이벤트 방지
+        // 기본 브라우저 이벤트 방지 및 시각적 피드백
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropArea.addEventListener(eventName, (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                // 드래그 중 시각적 피드백
+                if (eventName === 'dragenter' || eventName === 'dragover') {
+                    dropArea.classList.add('border-blue-500', 'bg-blue-50');
+                } else if (eventName === 'dragleave' || eventName === 'drop') {
+                    dropArea.classList.remove('border-blue-500', 'bg-blue-50');
+                }
             }, false);
         });
 
-        // 파일 드롭 처리
         // 파일 드롭 처리 (Async/Await를 사용하여 안정성 확보)
         dropArea.addEventListener('drop', async (e) => {
             let dt = e.dataTransfer;
@@ -326,10 +327,11 @@ export function PhotoBoothPage(container) {
                  return;
             }
 
-            AppService.showLoading('이미지 로딩 및 저장 중...');
+            // 1. 로딩 스피너 표시 (DOM 파괴 시작)
+            AppService.showLoading('이미지 로딩 및 저장 중...'); 
 
             try {
-                // Promise.all 또는 for...of를 사용하여 모든 파일 로딩을 기다립니다.
+                // 2. 파일 로딩 (비동기 로딩을 기다립니다.)
                 const loadedImagePromises = validFiles.map(file => {
                     return new Promise((resolve, reject) => {
                         const reader = new FileReader();
@@ -341,18 +343,24 @@ export function PhotoBoothPage(container) {
 
                 const loadedImages = await Promise.all(loadedImagePromises);
 
-                // 모든 이미지 로드 완료: 전역 배열에 추가 및 저장
+                // 3. 모든 이미지 로드 완료: 전역 배열에 추가 및 저장
                 finalImagesViewer.unshift(...loadedImages);
-                saveViewerData(); // 🌟 모든 이미지 로드 후 최종 저장
+                saveViewerData(); // 로컬 스토리지 저장
 
-                // 로딩 메시지 해제 및 UI 업데이트
-                AppService.handleLocationChange(); // 뷰어 화면을 다시 렌더링하여 로딩 해제 및 업데이트
+                // 4. 로딩 해제 및 UI 업데이트 (성공)
+                AppService.hideLoading(); // 오버레이 제거
+                updateViewerGallery(); // DOM 파괴 없이 갤러리만 업데이트
+                
                 AppService.showAppMessage('로드 완료', `${loadedImages.length}장의 사진을 뷰어에 추가했습니다.`, false); 
 
             } catch (error) {
-                 console.error("파일 로딩 중 오류 발생:", error);
-                 AppService.showAppMessage('처리 오류', '파일을 로드하는 중 오류가 발생했습니다. 파일 크기를 확인해주세요.', true);
-                 AppService.handleLocationChange(); // 에러 발생 시 현재 화면 유지 (로딩 해제)
+                // 5. 오류 처리 및 UI 복구 (실패)
+                console.error("파일 로딩 중 오류 발생:", error);
+                
+                AppService.hideLoading(); // 오버레이 제거
+                AppService.showAppMessage('처리 오류', '파일을 로드하는 중 오류가 발생했습니다. 파일 크기를 확인해주세요.', true);
+                // 뷰어 갤러리는 이미 화면에 있으므로, 메시지만 띄우고 갤러리만 업데이트
+                updateViewerGallery(); 
             }
         }, false);
 

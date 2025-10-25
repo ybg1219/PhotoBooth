@@ -98,6 +98,13 @@ loadViewerData();
 const appModal = document.getElementById('app-modal');
 
 /**
+ * @private
+ * @type {HTMLElement|null}
+ * HTML 문서에 정의된 로딩 오버레이 요소.
+ */
+let appLoadingOverlay = null;
+
+/**
  * @public
  * @namespace
  * 애플리케이션 전체에서 공통으로 사용되는 유틸리티 함수와 전역 상태 접근자를 모아놓은 객체.
@@ -110,6 +117,7 @@ export const AppService = {
      * @param {boolean} [isError=false] - 에러 메시지 여부 (제목 색상 변경).
      */
     showAppMessage(title, message, isError = false) {
+        if (!appModal) return;
         document.getElementById('modal-title').textContent = title;
         document.getElementById('modal-message').textContent = message;
         document.getElementById('modal-title').classList.toggle('text-red-600', isError);
@@ -122,6 +130,7 @@ export const AppService = {
      * 표시된 커스텀 모달을 숨깁니다.
      */
     hideAppMessage() {
+        if (!appModal) return; 
         appModal.classList.add('hidden');
         appModal.classList.remove('flex');
     },
@@ -131,13 +140,19 @@ export const AppService = {
      * @param {string} [message='처리 중...'] - 로딩 메시지.
      */
     showLoading(message = '처리 중...') {
-        const app = document.getElementById('app');
-        app.innerHTML = `
-            <div class="flex flex-col items-center justify-center p-8">
-                <div class="spinner mb-4"></div>
-                <p class="text-xl text-gray-700">${message}</p>
-            </div>
-        `;
+        if (!appLoadingOverlay) return;
+        document.getElementById('loading-message').textContent = message;
+        appLoadingOverlay.classList.remove('hidden');
+        appLoadingOverlay.style.display = 'flex'; 
+    },
+
+    /**
+     * 로딩 오버레이를 숨깁니다.
+     */
+    hideLoading() {
+        if (!appLoadingOverlay) return;
+        appLoadingOverlay.classList.add('hidden');
+        appLoadingOverlay.style.display = 'none';
     },
 
     /**
@@ -189,10 +204,15 @@ router.register('/about', (container) => {
  */
 window.onload = () => {
     const appElement = document.getElementById('app');
+    appLoadingOverlay = document.getElementById('app-loading-overlay');
     
     // 모달 닫기 버튼에 AppService 유틸리티 함수 연결
     document.getElementById('modal-close-btn').addEventListener('click', AppService.hideAppMessage);
 
+    if (appModal) {
+        document.getElementById('modal-close-btn').addEventListener('click', AppService.hideAppMessage);
+    }
+    
     if (appElement) {
         // 라우터 시스템 초기화 및 #app DOM 요소 전달
         router.init(appElement);
