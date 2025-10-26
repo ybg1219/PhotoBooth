@@ -179,16 +179,31 @@ export async function handleFileSelection(event, renderResultScreen) {
     
     AppService.showLoading('사진 파일을 순서대로 로딩 중입니다...');
 
-    // await/for-of 루프를 사용하여 비동기 파일 로드를 순서대로 처리
-    for (const file of files) {
-        await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                capturedImages.push(e.target.result);
-                resolve();
-            };
-            reader.readAsDataURL(file);
-        });
+    try {
+        // await/for-of 루프를 사용하여 비동기 파일 로드를 순서대로 처리
+        for (const file of files) {
+            await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    capturedImages.push(e.target.result);
+                    resolve();
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // 로딩 완료 후 오버레이 숨기기
+        AppService.hideLoading(); 
+        
+        // 최종 결과 화면 렌더링
+        renderResultScreen();
+
+    } catch (error) {
+        console.error("파일 로딩 중 오류 발생:", error);
+        
+        // 오류 발생 시 오버레이 숨기고 에러 메시지 표시
+        AppService.hideLoading();
+        AppService.showAppMessage('처리 오류', '파일을 로드하는 중 오류가 발생했습니다.', true);
     }
     
     renderResultScreen();
