@@ -171,6 +171,17 @@ export const AppService = {
             videoStream.getTracks().forEach(track => track.stop());
             videoStream = null;
         }
+    },
+
+    /**
+     * @public
+     * 저장된 모든 뷰어 데이터를 로컬 스토리지에서 삭제하고 전역 배열을 초기화합니다.
+     */
+    clearAllViewerData() {
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+        finalImagesViewer.length = 0;
+        // 로컬 스토리지 초기화 후, 뷰어 버튼 카운트 업데이트를 위해 시작 화면 재렌더링을 유도
+        AppService.showAppMessage('데이터 삭제 완료', '저장된 모든 사진이 삭제되었습니다.', false);
     }
 };
 

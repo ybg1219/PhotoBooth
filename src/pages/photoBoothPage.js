@@ -252,14 +252,14 @@ export function PhotoBoothPage(container) {
                 gallery.innerHTML = `<p class="col-span-full text-center text-gray-500">아직 저장된 네컷 사진이 없습니다. 다운로드 파일을 끌어 놓으세요.</p>`;
             }
 
-            //  삭제 버튼 리스너 연결 및 로컬 스토리지 저장
+            //  이미지 개별 삭제 버튼 리스너 연결 및 로컬 스토리지 저장
             pageWrapper.querySelectorAll('.delete-photo-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const index = parseInt(e.target.dataset.index);
                     // 인덱스를 사용하여 배열에서 해당 항목 제거
                     finalImagesViewer.splice(index, 1);
                     saveViewerData(); // 로컬 스토리지 업데이트
-                    updateViewerGallery(); // 갤러리 UI 업데이트
+                    updateViewerGallery(); // UI 업데이트를 다음 이벤트 루프로 미룸 (렌더링 시간 확보)
                 });
             });
 
@@ -268,6 +268,18 @@ export function PhotoBoothPage(container) {
             if(resultBtn) {
                  resultBtn.textContent = `← 결과 화면으로 돌아가기 (${finalImagesViewer.length}개 저장됨)`;
             }
+            // 삭제 버튼
+            const deleteAllBtn = pageWrapper.querySelector('#delete-all-btn');
+            if(deleteAllBtn) {
+                deleteAllBtn.addEventListener('click', () => {
+                    const confirmed = confirm(`저장된 사진 ${finalImagesViewer.length}장을 모두 삭제하시겠습니까?`);
+                    if (confirmed) {
+                        AppService.clearAllViewerData(); // main.js의 전역 삭제 함수 호출
+                        renderViewerScreen();
+                    }
+                });
+            }
+
             // 시작 화면 뷰어 버튼 카운트 업데이트 (라우터의 도움 없이 직접 처리)
             const startViewerBtn = document.querySelector('#start-viewer-btn');
             if (startViewerBtn) {
@@ -289,7 +301,10 @@ export function PhotoBoothPage(container) {
                 <div id="photo-gallery" class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full p-4 bg-gray-100 rounded-lg">
                     <!-- 갤러리 내용은 JS에서 업데이트됩니다 --></div>
                 <button id="back-to-result-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg text-lg" aria-label="결과 화면으로 돌아가기">
-                    ← 결과 화면으로 돌아가기
+                    ← 처음 화면으로 돌아가기
+                </button>
+                <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full shadow-lg text-lg" aria-label="저장된 모든 사진 삭제">
+                    ❌ 저장된 사진 전체 삭제
                 </button>
             </div>
         `;
@@ -365,7 +380,7 @@ export function PhotoBoothPage(container) {
         }, false);
 
         // 3. 페이지 이동 버튼 연결
-        pageWrapper.querySelector('#back-to-result-btn').addEventListener('click', renderResultScreen);
+        pageWrapper.querySelector('#back-to-result-btn').addEventListener('click', renderStartScreen);
     }
 
     // -------------------------------------------------------------------------
